@@ -1,5 +1,9 @@
 import { Constellation, backgroundStars, constellations } from './constellations';
 import { Camera, raDecToScreen } from './camera';
+import { DisplaySettings } from './storage';
+import { constellationJa } from './i18n';
+import { drawCelestialLines } from './celestial-lines';
+import { drawFamousStars } from './famous-stars';
 
 function starRadius(mag: number, zoom: number): number {
   const base = Math.max(0.3, 3.5 - mag * 0.45);
@@ -20,6 +24,7 @@ interface DrawOptions {
   starColor: string;
   showLabel: boolean;
   labelColor?: string;
+  showLines: boolean;
 }
 
 function isOnScreen(x: number, y: number, w: number, h: number, margin: number): boolean {
@@ -37,19 +42,21 @@ function drawConstellation(
   const positions = con.stars.map(s => raDecToScreen(s.ra, s.dec, cam, w, h));
 
   // Lines
-  ctx.strokeStyle = opts.lineColor;
-  ctx.lineWidth = 1.5;
-  ctx.globalAlpha = opts.lineAlpha;
-  for (const line of con.lines) {
-    const from = positions[line.from];
-    const to = positions[line.to];
-    if (!isOnScreen(from.x, from.y, w, h, 100) && !isOnScreen(to.x, to.y, w, h, 100)) continue;
-    ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
-    ctx.stroke();
+  if (opts.showLines) {
+    ctx.strokeStyle = opts.lineColor;
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = opts.lineAlpha;
+    for (const line of con.lines) {
+      const from = positions[line.from];
+      const to = positions[line.to];
+      if (!isOnScreen(from.x, from.y, w, h, 100) && !isOnScreen(to.x, to.y, w, h, 100)) continue;
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
 
   // Stars
   for (let i = 0; i < con.stars.length; i++) {
@@ -79,11 +86,22 @@ function drawConstellation(
 
   if (opts.showLabel) {
     const center = raDecToScreen(con.centerRa, con.centerDec, cam, w, h);
-    ctx.font = `600 ${Math.min(16, 10 + cam.zoom * 0.5)}px "Space Grotesk", sans-serif`;
+    const fontSize = Math.min(16, 10 + cam.zoom * 0.5);
+    const ja = constellationJa[con.id] || '';
+
+    // Japanese name
+    ctx.font = `600 ${fontSize}px "Space Grotesk", sans-serif`;
     ctx.fillStyle = opts.labelColor || '#ffffff';
     ctx.textAlign = 'center';
     ctx.globalAlpha = 0.9;
-    ctx.fillText(con.name, center.x, center.y - 15);
+    if (ja) {
+      ctx.fillText(ja, center.x, center.y - 20);
+      ctx.font = `400 ${fontSize * 0.75}px "Space Grotesk", sans-serif`;
+      ctx.fillStyle = 'rgba(200,210,230,0.7)';
+      ctx.fillText(con.name, center.x, center.y - 5);
+    } else {
+      ctx.fillText(con.name, center.x, center.y - 15);
+    }
     ctx.globalAlpha = 1;
   }
 }
@@ -110,6 +128,36 @@ function drawNebula(ctx: CanvasRenderingContext2D, cam: Camera, w: number, h: nu
   }
 }
 
+// Draw all constellation names (when toggle is on)
+function drawAllConstellationNames(
+  ctx: CanvasRenderingContext2D,
+  cam: Camera,
+  w: number,
+  h: number,
+) {
+  for (const con of constellations) {
+    const center = raDecToScreen(con.centerRa, con.centerDec, cam, w, h);
+    if (!isOnScreen(center.x, center.y, w, h, 0)) continue;
+
+    const ja = constellationJa[con.id] || '';
+    const fontSize = Math.min(13, 9 + cam.zoom * 0.3);
+
+    ctx.font = `500 ${fontSize}px "Space Grotesk", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#a0b0d0';
+    if (ja) {
+      ctx.fillText(ja, center.x, center.y - 8);
+      ctx.font = `400 ${fontSize * 0.8}px "Space Grotesk", sans-serif`;
+      ctx.globalAlpha = 0.3;
+      ctx.fillText(con.name, center.x, center.y + 5);
+    } else {
+      ctx.fillText(con.name, center.x, center.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
 export interface RenderState {
   currentConstellation: Constellation | null;
   highlightConstellation: Constellation | null;
@@ -124,6 +172,7 @@ export function render(
   w: number,
   h: number,
   state: RenderState,
+  display: DisplaySettings,
 ) {
   // Background
   const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7);
@@ -133,6 +182,13 @@ export function render(
   ctx.fillRect(0, 0, w, h);
 
   drawNebula(ctx, cam, w, h);
+
+  // Celestial reference lines (behind stars)
+  drawCelestialLines(ctx, cam, w, h, {
+    showEquator: display.showEquator,
+    showEcliptic: display.showEcliptic,
+    showPoles: display.showPoles,
+  });
 
   // Background stars
   for (const star of backgroundStars) {
@@ -171,8 +227,17 @@ export function render(
       starColor: isHighlighted || isAnswer ? '#ffffff' : '#8899bb',
       showLabel: isAnswer,
       labelColor: state.tapResult?.correct ? '#4ade80' : '#f87171',
+      showLines: display.showConstellationLines,
     });
   }
+
+  // Constellation names overlay
+  if (display.showConstellationNames) {
+    drawAllConstellationNames(ctx, cam, w, h);
+  }
+
+  // Famous star names
+  drawFamousStars(ctx, cam, w, h, display.showStarNames);
 
   // Tap feedback ring
   if (state.tapResult && state.tapAnim > 0) {

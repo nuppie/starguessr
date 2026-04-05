@@ -6,17 +6,34 @@ export interface QuizRecord {
   timestamp: number;
 }
 
+export interface DisplaySettings {
+  showConstellationNames: boolean;
+  showConstellationLines: boolean;
+  showStarNames: boolean;
+  showEquator: boolean;
+  showEcliptic: boolean;
+  showPoles: boolean;
+}
+
 export interface UserState {
   totalCorrect: number;
   totalAttempts: number;
   streak: number;
   bestStreak: number;
   history: QuizRecord[];
-  // per-constellation stats
   constellationStats: Record<string, { correct: number; attempts: number }>;
-  // difficulty filter
   difficulty: 'all' | 'easy' | 'medium' | 'hard';
+  display: DisplaySettings;
 }
+
+const defaultDisplay: DisplaySettings = {
+  showConstellationNames: false,
+  showConstellationLines: true,
+  showStarNames: false,
+  showEquator: false,
+  showEcliptic: false,
+  showPoles: false,
+};
 
 const defaultState: UserState = {
   totalCorrect: 0,
@@ -26,13 +43,15 @@ const defaultState: UserState = {
   history: [],
   constellationStats: {},
   difficulty: 'all',
+  display: { ...defaultDisplay },
 };
 
 export function loadState(): UserState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      return { ...defaultState, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      return { ...defaultState, ...parsed, display: { ...defaultDisplay, ...parsed.display } };
     }
   } catch {
     // corrupted state, reset
