@@ -12,7 +12,7 @@ import './style.css';
 
 // --- App State ---
 let userState: UserState = loadState();
-let cam: Camera = { centerRa: 6, centerDec: 10, zoom: 8 };
+let cam: Camera = { centerRa: 6, centerDec: 10, zoom: 400 };
 let current: Constellation | null = null;
 let rs: RenderState = {
   currentConstellation: null,
@@ -62,7 +62,7 @@ function nextQuestion() {
   el.infoPanel.classList.add('hidden');
   updateStats();
 
-  cam = clampCamera({ centerRa: Math.random() * 24, centerDec: Math.random() * 140 - 70, zoom: 6 + Math.random() * 4 });
+  cam = clampCamera({ centerRa: Math.random() * 24, centerDec: Math.random() * 140 - 70, zoom: 300 + Math.random() * 200 });
   renderFrame();
 }
 
@@ -88,7 +88,7 @@ function handleTap(x: number, y: number) {
   const hasInfo = !!constellationInfo[current.id];
   el.infoBtn.style.display = hasInfo ? 'inline-block' : 'none';
 
-  camAnim = createCameraAnimation(cam, { centerRa: current.centerRa, centerDec: current.centerDec, zoom: 8 });
+  camAnim = createCameraAnimation(cam, { centerRa: current.centerRa, centerDec: current.centerDec, zoom: 400 });
   updateStats();
 }
 

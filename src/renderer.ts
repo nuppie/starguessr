@@ -7,7 +7,7 @@ import { drawFamousStars } from './famous-stars';
 
 function starRadius(mag: number, zoom: number): number {
   const base = Math.max(0.3, 3.5 - mag * 0.45);
-  const zoomFactor = Math.min(zoom / 8, 2.5);
+  const zoomFactor = Math.min(zoom / 300, 2.5);
   return base * zoomFactor;
 }
 
@@ -49,6 +49,7 @@ function drawConstellation(
     for (const line of con.lines) {
       const from = positions[line.from];
       const to = positions[line.to];
+      if (from.behind || to.behind) continue;
       if (!isOnScreen(from.x, from.y, w, h, 100) && !isOnScreen(to.x, to.y, w, h, 100)) continue;
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
@@ -61,7 +62,7 @@ function drawConstellation(
   // Stars
   for (let i = 0; i < con.stars.length; i++) {
     const pos = positions[i];
-    if (!isOnScreen(pos.x, pos.y, w, h, 20)) continue;
+    if (pos.behind || !isOnScreen(pos.x, pos.y, w, h, 20)) continue;
 
     const star = con.stars[i];
     const r = starRadius(star.mag, cam.zoom);
@@ -86,7 +87,8 @@ function drawConstellation(
 
   if (opts.showLabel) {
     const center = raDecToScreen(con.centerRa, con.centerDec, cam, w, h);
-    const fontSize = Math.min(16, 10 + cam.zoom * 0.5);
+    if (center.behind) return;
+    const fontSize = Math.min(16, 10 + cam.zoom * 0.01);
     const ja = constellationJa[con.id] || '';
 
     // Japanese name
@@ -115,7 +117,8 @@ function drawNebula(ctx: CanvasRenderingContext2D, cam: Camera, w: number, h: nu
 
   for (const p of patches) {
     const pos = raDecToScreen(p.ra, p.dec, cam, w, h);
-    const radius = p.r * cam.zoom;
+    if (pos.behind) continue;
+    const radius = p.r * cam.zoom * 0.02;
     if (!isOnScreen(pos.x, pos.y, w, h, radius)) continue;
 
     const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, radius);
@@ -137,10 +140,10 @@ function drawAllConstellationNames(
 ) {
   for (const con of constellations) {
     const center = raDecToScreen(con.centerRa, con.centerDec, cam, w, h);
-    if (!isOnScreen(center.x, center.y, w, h, 0)) continue;
+    if (center.behind || !isOnScreen(center.x, center.y, w, h, 0)) continue;
 
     const ja = constellationJa[con.id] || '';
-    const fontSize = Math.min(13, 9 + cam.zoom * 0.3);
+    const fontSize = Math.min(13, 9 + cam.zoom * 0.005);
 
     ctx.font = `500 ${fontSize}px "Space Grotesk", sans-serif`;
     ctx.textAlign = 'center';
@@ -193,7 +196,7 @@ export function render(
   // Background stars
   for (const star of backgroundStars) {
     const pos = raDecToScreen(star.ra, star.dec, cam, w, h);
-    if (!isOnScreen(pos.x, pos.y, w, h, 20)) continue;
+    if (pos.behind || !isOnScreen(pos.x, pos.y, w, h, 20)) continue;
 
     const r = starRadius(star.mag, cam.zoom);
     const alpha = starAlpha(star.mag);

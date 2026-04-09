@@ -51,13 +51,12 @@ export function drawFamousStars(
 
   for (const star of famousStars) {
     const pos = raDecToScreen(star.ra, star.dec, cam, w, h);
-    if (pos.x < -30 || pos.x > w + 30 || pos.y < -30 || pos.y > h + 30) continue;
+    if (pos.behind || pos.x < -30 || pos.x > w + 30 || pos.y < -30 || pos.y > h + 30) continue;
 
-    // Name label
     ctx.font = '10px "Space Grotesk", sans-serif';
     ctx.fillStyle = 'rgba(200, 210, 255, 0.6)';
     ctx.textAlign = 'left';
-    const r = Math.max(2, 4 - star.mag * 0.5) * Math.min(cam.zoom / 8, 2);
+    const r = Math.max(2, 4 - star.mag * 0.5) * Math.min(cam.zoom / 300, 2);
     ctx.fillText(`${star.nameJa}`, pos.x + r + 4, pos.y - 2);
     ctx.fillStyle = 'rgba(160, 170, 200, 0.4)';
     ctx.fillText(star.name, pos.x + r + 4, pos.y + 10);
