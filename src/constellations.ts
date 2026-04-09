@@ -982,10 +982,18 @@ export const backgroundStars: Star[] = [
   { ra:  4.30, dec:  15.87, mag:  3.65 },
   { ra:  4.48, dec:  16.00, mag:  3.76 },
   { ra:  4.52, dec:  15.52, mag:  4.29 },
-  // Random dim background stars for atmosphere
-  ...Array.from({ length: 188 }, (_, i) => ({
-    ra:  ((i * 7.3127 + 1.618) % 24),
-    dec: ((i * 13.711 + 3.141) % 180) - 90,
-    mag: 3.8 + ((i * 3 + 7) % 25) * 0.08,
-  })),
+  // Random dim background stars — uniform distribution on sphere
+  ...Array.from({ length: 300 }, (_, i) => {
+    // Use deterministic pseudo-random (golden ratio based) for uniform sphere coverage
+    const phi = (i * 0.6180339887) % 1; // golden ratio fraction
+    const theta = (i * 0.3247179572) % 1; // another irrational
+    const ra = phi * 24;
+    // acos distribution for uniform sphere: dec = asin(2*theta - 1) in degrees
+    const dec = Math.asin(2 * theta - 1) * (180 / Math.PI);
+    return {
+      ra,
+      dec,
+      mag: 3.8 + ((i * 3 + 7) % 25) * 0.08,
+    };
+  }),
 ];

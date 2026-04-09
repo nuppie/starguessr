@@ -107,13 +107,14 @@ export function raDecToScreen(
   }
 
   // Stereographic projection: project from south pole (-Z) onto tangent plane at north pole (+Z)
+  // ly maps to screen X (RA increases to the right), lx maps to screen Y (inverted)
   const denom = 1 + lz;
-  const projX = lx / denom;
-  const projY = ly / denom;
+  const projX = ly / denom;
+  const projY = -lx / denom;
 
   return {
     x: w / 2 + projX * cam.zoom,
-    y: h / 2 - projY * cam.zoom, // Y flipped
+    y: h / 2 + projY * cam.zoom,
     behind: false,
   };
 }
@@ -125,15 +126,15 @@ export function screenToRaDec(
   w: number,
   h: number
 ): { ra: number; dec: number } {
-  // Inverse stereographic projection
+  // Inverse stereographic projection (matching the axis swap in raDecToScreen)
   const projX = (sx - w / 2) / cam.zoom;
-  const projY = -(sy - h / 2) / cam.zoom;
+  const projY = (sy - h / 2) / cam.zoom;
 
   const r2 = projX * projX + projY * projY;
   const lz = (1 - r2) / (1 + r2);
   const scale = 2 / (1 + r2);
-  const lx = projX * scale;
-  const ly = projY * scale;
+  const ly = projX * scale;
+  const lx = -projY * scale;
 
   const camRaRad = cam.centerRa * 15 * DEG;
   const camDecRad = cam.centerDec * DEG;
@@ -142,15 +143,26 @@ export function screenToRaDec(
   return vecToRaDec(wx, wy, wz);
 }
 
-export function panCamera(cam: Camera, dxPixels: number, dyPixels: number): Camera {
-  // Convert pixel drag to angular displacement on the sphere
-  const scale = 1 / cam.zoom; // radians per pixel
-  const dRaDeg = -dxPixels * scale / DEG / Math.max(Math.cos(cam.centerDec * DEG), 0.05);
-  const dDecDeg = dyPixels * scale / DEG;
+export function panCameraByScreenDelta(
+  cam: Camera,
+  fromX: number, fromY: number,
+  toX: number, toY: number,
+  w: number, h: number
+): Camera {
+  // Where the finger started (in sky coordinates)
+  const from = screenToRaDec(fromX, fromY, cam, w, h);
+  // Where the finger moved to
+  const to = screenToRaDec(toX, toY, cam, w, h);
+
+  // Move the camera so that the sky point under the finger stays put
+  let dRa = from.ra - to.ra;
+  if (dRa > 12) dRa -= 24;
+  if (dRa < -12) dRa += 24;
+  const dDec = from.dec - to.dec;
 
   return clampCamera({
-    centerRa: cam.centerRa + dRaDeg / 15, // degrees to hours
-    centerDec: cam.centerDec + dDecDeg,
+    centerRa: cam.centerRa + dRa,
+    centerDec: cam.centerDec + dDec,
     zoom: cam.zoom,
   });
 }

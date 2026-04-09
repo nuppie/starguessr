@@ -1,8 +1,10 @@
-import { Camera, panCamera, zoomCamera } from './camera';
+import { panCameraByScreenDelta, zoomCamera } from './camera';
+import type { Camera } from './camera';
 
 export interface InputCallbacks {
   getCamera(): Camera;
   setCamera(cam: Camera): void;
+  getViewport(): { w: number; h: number };
   onTap(x: number, y: number): void;
   onRender(): void;
 }
@@ -13,7 +15,6 @@ export function setupInputHandlers(canvas: HTMLCanvasElement, cb: InputCallbacks
   let pinchDist = 0;
   let lastDragTime = 0;
 
-  // Exported so animation loop can read/decay
   const momentum = { vx: 0, vy: 0 };
 
   function onPointerDown(x: number, y: number) {
@@ -26,11 +27,14 @@ export function setupInputHandlers(canvas: HTMLCanvasElement, cb: InputCallbacks
 
   function onPointerMove(x: number, y: number) {
     if (!isDragging) return;
+
+    const { w, h } = cb.getViewport();
+    const cam = cb.getCamera();
+    const newCam = panCameraByScreenDelta(cam, lastPointer.x, lastPointer.y, x, y, w, h);
+    cb.setCamera(newCam);
+
     const dx = x - lastPointer.x;
     const dy = y - lastPointer.y;
-
-    cb.setCamera(panCamera(cb.getCamera(), dx, dy));
-
     const now = performance.now();
     const dt = now - lastDragTime;
     if (dt > 0) {

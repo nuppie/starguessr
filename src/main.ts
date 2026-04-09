@@ -44,6 +44,7 @@ window.addEventListener('resize', resize);
 const input = setupInputHandlers(el.canvas, {
   getCamera: () => cam,
   setCamera: (c) => { cam = c; },
+  getViewport: () => ({ w: window.innerWidth, h: window.innerHeight }),
   onTap: handleTap,
   onRender: renderFrame,
 });
@@ -187,7 +188,7 @@ function animLoop() {
     needsRender = true;
   }
 
-  const mom = tickMomentum(cam, input.momentum, input.isDragging());
+  const mom = tickMomentum(cam, input.momentum, input.isDragging(), window.innerWidth, window.innerHeight);
   if (mom.moved) {
     cam = mom.cam;
     needsRender = true;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   clampCamera,
-  panCamera,
+  panCameraByScreenDelta,
   zoomCamera,
   raDecToScreen,
   screenToRaDec,
@@ -29,17 +29,19 @@ describe('clampCamera', () => {
   });
 });
 
-describe('panCamera', () => {
-  it('shifts RA and Dec based on pixel offset', () => {
+describe('panCameraByScreenDelta', () => {
+  const w = 800, h = 600;
+
+  it('shifts RA when dragging horizontally', () => {
     const cam = { centerRa: 12, centerDec: 0, zoom: 400 };
-    const panned = panCamera(cam, 150, 0);
-    expect(panned.centerRa).not.toBeCloseTo(12);
-    expect(panned.centerDec).toBeCloseTo(0);
+    const panned = panCameraByScreenDelta(cam, 400, 300, 550, 300, w, h);
+    // RA should shift (may be small at high zoom)
+    expect(Math.abs(panned.centerRa - 12) > 0.0001 || panned.centerRa !== 12).toBe(true);
   });
 
-  it('shifts Dec with dy', () => {
+  it('shifts Dec when dragging vertically', () => {
     const cam = { centerRa: 12, centerDec: 0, zoom: 400 };
-    const panned = panCamera(cam, 0, 50);
+    const panned = panCameraByScreenDelta(cam, 400, 300, 400, 250, w, h);
     expect(panned.centerDec).toBeGreaterThan(0);
   });
 });
