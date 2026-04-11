@@ -216,7 +216,7 @@ export function panCameraByScreenDelta(
   // RA change: screen right (dx > 0) = east = camera moves west (RA decreases)
   // Smooth-clamp cos(dec) to prevent wild spinning near poles
   const cosDec = Math.cos(cam.centerDec * DEG);
-  const effectiveCos = Math.sqrt(cosDec * cosDec + 0.04); // floor ~0.2 at pole
+  const effectiveCos = Math.sqrt(cosDec * cosDec + 0.25); // floor ~0.5 at pole
   const dRa = -dx * radPerPx / (effectiveCos * 15 * DEG); // radians → hours
 
   return clampCamera({
