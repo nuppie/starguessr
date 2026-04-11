@@ -143,28 +143,106 @@ export function screenToRaDec(
   return vecToRaDec(wx, wy, wz);
 }
 
+// Map screen point to unit vector on the celestial sphere (no RA/Dec intermediary)
+function screenToVec(
+  sx: number, sy: number, cam: Camera, w: number, h: number
+): [number, number, number] {
+  const projX = (sx - w / 2) / cam.zoom;
+  const projY = (sy - h / 2) / cam.zoom;
+  const r2 = projX * projX + projY * projY;
+  const lz = (1 - r2) / (1 + r2);
+  const scale = 2 / (1 + r2);
+  const ly = projX * scale;
+  const lx = -projY * scale;
+
+  const camRaRad = cam.centerRa * 15 * DEG;
+  const camDecRad = cam.centerDec * DEG;
+  return rotateFromCamera(lx, ly, lz, camRaRad, camDecRad);
+}
+
+// Rodrigues rotation: rotate vector v around unit axis by angle (given as sin/cos)
+function rodrigues(
+  v: [number, number, number],
+  axis: [number, number, number],
+  sinA: number, cosA: number
+): [number, number, number] {
+  const dot = axis[0] * v[0] + axis[1] * v[1] + axis[2] * v[2];
+  const cx = axis[1] * v[2] - axis[2] * v[1];
+  const cy = axis[2] * v[0] - axis[0] * v[2];
+  const cz = axis[0] * v[1] - axis[1] * v[0];
+  const t = 1 - cosA;
+  return [
+    v[0] * cosA + cx * sinA + axis[0] * dot * t,
+    v[1] * cosA + cy * sinA + axis[1] * dot * t,
+    v[2] * cosA + cz * sinA + axis[2] * dot * t,
+  ];
+}
+
+function panStep(
+  cam: Camera,
+  fromX: number, fromY: number,
+  toX: number, toY: number,
+  w: number, h: number
+): Camera {
+  // Single small-step pan using Jacobian at the "from" point.
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  if (dx === 0 && dy === 0) return cam;
+
+  const eps = 0.5;
+  const center = screenToRaDec(fromX, fromY, cam, w, h);
+  const right  = screenToRaDec(fromX + eps, fromY, cam, w, h);
+  const down   = screenToRaDec(fromX, fromY + eps, cam, w, h);
+
+  let dRa_dx = (right.ra - center.ra) / eps;
+  let dRa_dy = (down.ra - center.ra) / eps;
+  let dDec_dx = (right.dec - center.dec) / eps;
+  let dDec_dy = (down.dec - center.dec) / eps;
+
+  if (dRa_dx > 12) dRa_dx -= 24;
+  if (dRa_dx < -12) dRa_dx += 24;
+  if (dRa_dy > 12) dRa_dy -= 24;
+  if (dRa_dy < -12) dRa_dy += 24;
+
+  const dRa  = dRa_dx * dx + dRa_dy * dy;
+  const dDec = dDec_dx * dx + dDec_dy * dy;
+
+  return clampCamera({
+    centerRa: cam.centerRa - dRa,
+    centerDec: cam.centerDec - dDec,
+    zoom: cam.zoom,
+  });
+}
+
 export function panCameraByScreenDelta(
   cam: Camera,
   fromX: number, fromY: number,
   toX: number, toY: number,
   w: number, h: number
 ): Camera {
-  // Where the finger started (in sky coordinates)
-  const from = screenToRaDec(fromX, fromY, cam, w, h);
-  // Where the finger moved to
-  const to = screenToRaDec(toX, toY, cam, w, h);
+  // Subdivide into small steps, always computing the Jacobian at the SCREEN
+  // CENTER (= camera center) where derivatives are cleanest:
+  //   - horizontal drag → pure RA change (no Dec drift)
+  //   - vertical drag   → pure Dec change (no RA drift)
+  // After each step the camera updates, so the next step's Jacobian
+  // reflects the new position — this keeps behaviour uniform at any Dec.
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 0.5) return cam;
 
-  // Move the camera so that the sky point under the finger stays put
-  let dRa = from.ra - to.ra;
-  if (dRa > 12) dRa -= 24;
-  if (dRa < -12) dRa += 24;
-  const dDec = from.dec - to.dec;
+  const MAX_STEP = 4;
+  const steps = Math.max(1, Math.ceil(dist / MAX_STEP));
+  const stepDx = dx / steps;
+  const stepDy = dy / steps;
+  const cx = w / 2;
+  const cy = h / 2;
 
-  return clampCamera({
-    centerRa: cam.centerRa + dRa,
-    centerDec: cam.centerDec + dDec,
-    zoom: cam.zoom,
-  });
+  let cur = cam;
+  for (let i = 0; i < steps; i++) {
+    cur = panStep(cur, cx, cy, cx + stepDx, cy + stepDy, w, h);
+  }
+  return cur;
 }
 
 export function zoomCamera(cam: Camera, factor: number): Camera {
