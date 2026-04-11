@@ -12,9 +12,17 @@ export const DEC_MIN = -90;
 export const DEC_MAX = 90;
 
 export function clampCamera(cam: Camera): Camera {
+  let dec = cam.centerDec;
+  let ra = cam.centerRa;
+
+  // Pole wrapping: allow dragging through the pole
+  // When Dec exceeds ±90°, wrap to the other side and flip RA by 12h
+  while (dec > 90) { dec = 180 - dec; ra += 12; }
+  while (dec < -90) { dec = -180 - dec; ra += 12; }
+
   return {
-    centerRa: ((cam.centerRa % 24) + 24) % 24,
-    centerDec: Math.max(DEC_MIN, Math.min(DEC_MAX, cam.centerDec)),
+    centerRa: ((ra % 24) + 24) % 24,
+    centerDec: dec,
     zoom: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, cam.zoom)),
   };
 }
@@ -178,71 +186,44 @@ function rodrigues(
   ];
 }
 
-function panStep(
-  cam: Camera,
-  fromX: number, fromY: number,
-  toX: number, toY: number,
-  w: number, h: number
-): Camera {
-  // Single small-step pan using Jacobian at the "from" point.
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  if (dx === 0 && dy === 0) return cam;
-
-  const eps = 0.5;
-  const center = screenToRaDec(fromX, fromY, cam, w, h);
-  const right  = screenToRaDec(fromX + eps, fromY, cam, w, h);
-  const down   = screenToRaDec(fromX, fromY + eps, cam, w, h);
-
-  let dRa_dx = (right.ra - center.ra) / eps;
-  let dRa_dy = (down.ra - center.ra) / eps;
-  let dDec_dx = (right.dec - center.dec) / eps;
-  let dDec_dy = (down.dec - center.dec) / eps;
-
-  if (dRa_dx > 12) dRa_dx -= 24;
-  if (dRa_dx < -12) dRa_dx += 24;
-  if (dRa_dy > 12) dRa_dy -= 24;
-  if (dRa_dy < -12) dRa_dy += 24;
-
-  const dRa  = dRa_dx * dx + dRa_dy * dy;
-  const dDec = dDec_dx * dx + dDec_dy * dy;
-
-  return clampCamera({
-    centerRa: cam.centerRa - dRa,
-    centerDec: cam.centerDec - dDec,
-    zoom: cam.zoom,
-  });
-}
-
 export function panCameraByScreenDelta(
   cam: Camera,
   fromX: number, fromY: number,
   toX: number, toY: number,
   w: number, h: number
 ): Camera {
-  // Subdivide into small steps, always computing the Jacobian at the SCREEN
-  // CENTER (= camera center) where derivatives are cleanest:
-  //   - horizontal drag → pure RA change (no Dec drift)
-  //   - vertical drag   → pure Dec change (no RA drift)
-  // After each step the camera updates, so the next step's Jacobian
-  // reflects the new position — this keeps behaviour uniform at any Dec.
+  // Analytical pan using stereographic projection scale.
+  //
+  // At the screen center the stereographic projection has a uniform scale
+  // of (2 / zoom) radians per pixel. We decompose the screen drag into
+  // east (RA) and north (Dec) angular displacements.
+  //
+  // Near the poles, cos(dec) → 0 makes dRA diverge. We smooth-clamp it
+  // with sqrt(cos²(dec) + ε²) so the rotation speed stays bounded while
+  // still accelerating naturally at moderate latitudes. This matches the
+  // Stellarium approach of damping near the poles.
+
   const dx = toX - fromX;
   const dy = toY - fromY;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist < 0.5) return cam;
+  if (dx === 0 && dy === 0) return cam;
 
-  const MAX_STEP = 4;
-  const steps = Math.max(1, Math.ceil(dist / MAX_STEP));
-  const stepDx = dx / steps;
-  const stepDy = dy / steps;
-  const cx = w / 2;
-  const cy = h / 2;
+  // Radians per pixel at screen center (stereographic scale)
+  const radPerPx = 2 / cam.zoom;
 
-  let cur = cam;
-  for (let i = 0; i < steps; i++) {
-    cur = panStep(cur, cx, cy, cx + stepDx, cy + stepDy, w, h);
-  }
-  return cur;
+  // Dec change: screen down (dy > 0) = south = Dec decreases
+  const dDec = -dy * radPerPx / DEG;
+
+  // RA change: screen right (dx > 0) = east = camera moves west (RA decreases)
+  // Smooth-clamp cos(dec) to prevent wild spinning near poles
+  const cosDec = Math.cos(cam.centerDec * DEG);
+  const effectiveCos = Math.sqrt(cosDec * cosDec + 0.04); // floor ~0.2 at pole
+  const dRa = -dx * radPerPx / (effectiveCos * 15 * DEG); // radians → hours
+
+  return clampCamera({
+    centerRa: cam.centerRa + dRa,
+    centerDec: cam.centerDec + dDec,
+    zoom: cam.zoom,
+  });
 }
 
 export function zoomCamera(cam: Camera, factor: number): Camera {
