@@ -13,7 +13,7 @@ import './style.css';
 
 // --- App State ---
 let userState: UserState = loadState();
-let cam: Camera = { centerRa: 6, centerDec: 10, zoom: 400 };
+let cam: Camera = { centerRa: 6, centerDec: 10, zoom: 400, roll: 0 };
 let current: Constellation | null = null;
 let solarBodies: SolarSystemBody[] = getSolarSystemBodies();
 let horizonInfo: HorizonInfo | null = null;
@@ -101,7 +101,7 @@ function nextQuestion() {
   el.timerFill.style.width = '100%';
   el.timerFill.className = '';
 
-  cam = clampCamera({ centerRa: Math.random() * 24, centerDec: Math.random() * 140 - 70, zoom: 300 + Math.random() * 200 });
+  cam = clampCamera({ centerRa: Math.random() * 24, centerDec: Math.random() * 140 - 70, zoom: 300 + Math.random() * 200, roll: 0 });
   renderFrame();
 }
 
@@ -123,7 +123,7 @@ function handleTimeout() {
   const hasInfo = !!constellationInfo[current.id];
   el.infoBtn.style.display = hasInfo ? 'inline-block' : 'none';
 
-  camAnim = createCameraAnimation(cam, { centerRa: current.centerRa, centerDec: current.centerDec, zoom: 400 });
+  camAnim = createCameraAnimation(cam, { centerRa: current.centerRa, centerDec: current.centerDec, zoom: 400, roll: 0 });
   updateStats();
 }
 
@@ -151,7 +151,7 @@ function handleTap(x: number, y: number) {
   const hasInfo = !!constellationInfo[current.id];
   el.infoBtn.style.display = hasInfo ? 'inline-block' : 'none';
 
-  camAnim = createCameraAnimation(cam, { centerRa: current.centerRa, centerDec: current.centerDec, zoom: 400 });
+  camAnim = createCameraAnimation(cam, { centerRa: current.centerRa, centerDec: current.centerDec, zoom: 400, roll: 0 });
   updateStats();
 }
 
@@ -269,6 +269,13 @@ function animLoop() {
     }
   }
 
+  // Roll decay: snap back to north-up after drag
+  const rollNow = cam.roll ?? 0;
+  if (!input.isDragging() && Math.abs(rollNow) > 0.0005) {
+    cam = { ...cam, roll: rollNow * 0.88 };
+    needsRender = true;
+  }
+
   const mom = tickMomentum(cam, input.momentum, input.isDragging());
   if (mom.moved) {
     cam = mom.cam;
@@ -362,7 +369,7 @@ updateSkyInfo();
 
 // Debug: expose camera for testing
 (window as any).__getCam = () => ({ ra: cam.centerRa, dec: cam.centerDec, zoom: cam.zoom });
-(window as any).__setCam = (ra: number, dec: number) => { cam = clampCamera({ centerRa: ra, centerDec: dec, zoom: cam.zoom }); renderFrame(); };
+(window as any).__setCam = (ra: number, dec: number) => { cam = clampCamera({ centerRa: ra, centerDec: dec, zoom: cam.zoom, roll: 0 }); renderFrame(); };
 
 // --- Start ---
 resize();

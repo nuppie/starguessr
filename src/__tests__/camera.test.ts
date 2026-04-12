@@ -18,9 +18,10 @@ describe('clampCamera', () => {
     expect(clampCamera({ centerRa: -2, centerDec: 0, zoom: 400 }).centerRa).toBeCloseTo(22);
   });
 
-  it('clamps Dec to bounds', () => {
-    expect(clampCamera({ centerRa: 0, centerDec: 100, zoom: 400 }).centerDec).toBe(DEC_MAX);
-    expect(clampCamera({ centerRa: 0, centerDec: -100, zoom: 400 }).centerDec).toBe(DEC_MIN);
+  it('normalises Dec to [-180, 180] (values beyond ±90 wrap through poles)', () => {
+    expect(clampCamera({ centerRa: 0, centerDec: 100, zoom: 400 }).centerDec).toBe(100);
+    expect(clampCamera({ centerRa: 0, centerDec: -100, zoom: 400 }).centerDec).toBe(-100);
+    expect(clampCamera({ centerRa: 0, centerDec: 200, zoom: 400 }).centerDec).toBe(-160);
   });
 
   it('clamps zoom to bounds', () => {
