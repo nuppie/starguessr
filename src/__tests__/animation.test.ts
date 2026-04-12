@@ -39,21 +39,21 @@ describe('tickMomentum', () => {
   it('returns no movement when dragging', () => {
     const cam: Camera = { centerRa: 12, centerDec: 0, zoom: 400 };
     const momentum = { vx: 5, vy: 5 };
-    const result = tickMomentum(cam, momentum, true, 800, 600);
+    const result = tickMomentum(cam, momentum, true);
     expect(result.moved).toBe(false);
   });
 
   it('returns no movement when momentum is zero', () => {
     const cam: Camera = { centerRa: 12, centerDec: 0, zoom: 400 };
     const momentum = { vx: 0, vy: 0 };
-    const result = tickMomentum(cam, momentum, false, 800, 600);
+    const result = tickMomentum(cam, momentum, false);
     expect(result.moved).toBe(false);
   });
 
   it('applies momentum and decays', () => {
     const cam: Camera = { centerRa: 12, centerDec: 0, zoom: 400 };
     const momentum = { vx: 5, vy: 3 };
-    const result = tickMomentum(cam, momentum, false, 800, 600);
+    const result = tickMomentum(cam, momentum, false);
     expect(result.moved).toBe(true);
     expect(momentum.vx).toBeCloseTo(5 * 0.92);
     expect(momentum.vy).toBeCloseTo(3 * 0.92);

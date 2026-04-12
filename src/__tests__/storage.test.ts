@@ -35,6 +35,7 @@ describe('loadState', () => {
       history: [],
       constellationStats: {},
       difficulty: 'easy',
+      display: { showConstellationNames: false, showConstellationLines: true, showStarNames: false, showEquator: false, showEcliptic: false, showPoles: false, showSolarSystem: true, showHorizon: false },
     };
     store['starguessr_state'] = JSON.stringify(saved);
     const s = loadState();
@@ -79,6 +80,7 @@ describe('recordAnswer', () => {
     const fresh: UserState = {
       totalCorrect: 0, totalAttempts: 0, streak: 0, bestStreak: 0,
       history: [], constellationStats: {}, difficulty: 'all',
+      display: { showConstellationNames: false, showConstellationLines: true, showStarNames: false, showEquator: false, showEcliptic: false, showPoles: false, showSolarSystem: true, showHorizon: false },
     };
     let s = recordAnswer(fresh, 'orion', true);
     s = recordAnswer(s, 'orion', false);

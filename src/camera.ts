@@ -12,16 +12,15 @@ export const DEC_MIN = -90;
 export const DEC_MAX = 90;
 
 export function clampCamera(cam: Camera): Camera {
-  let dec = cam.centerDec;
-  let ra = cam.centerRa;
-
-  // Pole wrapping: allow dragging through the pole
-  // When Dec exceeds ±90°, wrap to the other side and flip RA by 12h
-  while (dec > 90) { dec = 180 - dec; ra += 12; }
-  while (dec < -90) { dec = -180 - dec; ra += 12; }
+  // Dec is NOT clamped to ±90°. Values beyond ±90° are valid:
+  // raDecToVec handles them correctly via trigonometry (e.g. Dec=95°
+  // maps to the same point as Dec=85°, RA+12h). This lets the user
+  // drag smoothly through the poles without "bouncing".
+  // Normalize to [-180,180] to prevent unbounded growth.
+  let dec = ((cam.centerDec + 180) % 360 + 360) % 360 - 180;
 
   return {
-    centerRa: ((ra % 24) + 24) % 24,
+    centerRa: ((cam.centerRa % 24) + 24) % 24,
     centerDec: dec,
     zoom: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, cam.zoom)),
   };
@@ -186,42 +185,53 @@ function rodrigues(
   ];
 }
 
-export function panCameraByScreenDelta(
-  cam: Camera,
-  fromX: number, fromY: number,
-  toX: number, toY: number,
+// Origin-based trackball: compute TOTAL rotation from drag start.
+// Roll is discarded only once (not per frame), so pole behavior is correct.
+export function panCameraFromOrigin(
+  startCam: Camera,
+  startX: number, startY: number,
+  currentX: number, currentY: number,
   w: number, h: number
 ): Camera {
-  // Analytical pan using stereographic projection scale.
-  //
-  // At the screen center the stereographic projection has a uniform scale
-  // of (2 / zoom) radians per pixel. We decompose the screen drag into
-  // east (RA) and north (Dec) angular displacements.
-  //
-  // Near the poles, cos(dec) → 0 makes dRA diverge. We smooth-clamp it
-  // with sqrt(cos²(dec) + ε²) so the rotation speed stays bounded while
-  // still accelerating naturally at moderate latitudes. This matches the
-  // Stellarium approach of damping near the poles.
+  // Map both points to sphere using the ORIGINAL camera (not the current one)
+  const v0 = screenToVec(startX, startY, startCam, w, h);
+  const v1 = screenToVec(currentX, currentY, startCam, w, h);
 
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  if (dx === 0 && dy === 0) return cam;
+  const crossX = v1[1] * v0[2] - v1[2] * v0[1];
+  const crossY = v1[2] * v0[0] - v1[0] * v0[2];
+  const crossZ = v1[0] * v0[1] - v1[1] * v0[0];
+  const sinA = Math.sqrt(crossX * crossX + crossY * crossY + crossZ * crossZ);
+  const cosA = v1[0] * v0[0] + v1[1] * v0[1] + v1[2] * v0[2];
 
-  // Radians per pixel at screen center (stereographic scale)
-  const radPerPx = 2 / cam.zoom;
+  if (sinA < 1e-10) return startCam;
 
-  // Dec change: screen down (dy > 0) = south = Dec decreases
-  const dDec = -dy * radPerPx / DEG;
+  // When rotation > ~120°, numerics get shaky — caller should reset origin
+  if (cosA < -0.5) return startCam;
 
-  // RA change: screen right (dx > 0) = east = camera moves west (RA decreases)
-  // Smooth-clamp cos(dec) to prevent wild spinning near poles
-  const cosDec = Math.cos(cam.centerDec * DEG);
-  const effectiveCos = Math.sqrt(cosDec * cosDec + 0.25); // floor ~0.5 at pole
-  const dRa = -dx * radPerPx / (effectiveCos * 15 * DEG); // radians → hours
+  const axis: [number, number, number] = [crossX / sinA, crossY / sinA, crossZ / sinA];
 
+  const camVec = raDecToVec(startCam.centerRa, startCam.centerDec);
+  const rotated = rodrigues(camVec, axis, sinA, cosA);
+  const { ra, dec } = vecToRaDec(rotated[0], rotated[1], rotated[2]);
+
+  return clampCamera({ centerRa: ra, centerDec: dec, zoom: startCam.zoom });
+}
+
+// Spherical coordinate navigation: horizontal → RA, vertical → Dec.
+// No cos(Dec) scaling — horizontal drag always rotates around the polar axis
+// at a constant rate, which feels natural at poles. Dec values > ±90° are
+// passed through to clampCamera, which normalises to [−180,180]; raDecToVec
+// handles them correctly, so dragging through the poles works smoothly.
+export function panCameraByScreenDelta(
+  cam: Camera,
+  dx: number,
+  dy: number,
+): Camera {
+  const dRaHours = -dx / cam.zoom * (180 / Math.PI) / 15;
+  const dDecDeg  =  dy / cam.zoom * (180 / Math.PI);
   return clampCamera({
-    centerRa: cam.centerRa + dRa,
-    centerDec: cam.centerDec + dDec,
+    centerRa:  cam.centerRa  + dRaHours,
+    centerDec: cam.centerDec - dDecDeg,
     zoom: cam.zoom,
   });
 }

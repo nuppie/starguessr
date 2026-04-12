@@ -35,17 +35,12 @@ export function tickMomentum(
   cam: Camera,
   momentum: { vx: number; vy: number },
   isDragging: boolean,
-  w: number,
-  h: number,
 ): { cam: Camera; moved: boolean } {
   if (isDragging || (Math.abs(momentum.vx) <= 0.001 && Math.abs(momentum.vy) <= 0.001)) {
     return { cam, moved: false };
   }
 
-  // Simulate a drag from center by the momentum offset
-  const cx = w / 2;
-  const cy = h / 2;
-  const newCam = panCameraByScreenDelta(cam, cx, cy, cx + momentum.vx, cy + momentum.vy, w, h);
+  const newCam = panCameraByScreenDelta(cam, momentum.vx, momentum.vy);
   momentum.vx *= 0.92;
   momentum.vy *= 0.92;
   return { cam: newCam, moved: true };

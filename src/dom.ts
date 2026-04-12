@@ -24,12 +24,17 @@ export function createAppHTML(): string {
         <div id="question-name"></div>
         <div id="question-name-en"></div>
         <div id="question-hint"></div>
+        <div id="timer-bar"><div id="timer-fill"></div></div>
       </div>
       <div id="feedback-card" class="hidden">
         <div id="feedback-icon"></div>
         <div id="feedback-text"></div>
         <button id="info-btn">${l.info}</button>
         <button id="next-btn">${l.next}</button>
+      </div>
+      <div id="sky-info" class="hidden">
+        <span id="sky-datetime"></span>
+        <span id="sky-location"></span>
       </div>
       <div id="zoom-controls">
         <button id="zoom-in" aria-label="Zoom in">+</button>
@@ -109,6 +114,16 @@ export function createAppHTML(): string {
               <input type="checkbox" id="toggle-poles" />
               <span class="toggle-switch"></span>
             </label>
+            <label class="toggle-row">
+              <span>${l.showSolarSystem}</span>
+              <input type="checkbox" id="toggle-solar" checked />
+              <span class="toggle-switch"></span>
+            </label>
+            <label class="toggle-row">
+              <span>${l.showHorizon}</span>
+              <input type="checkbox" id="toggle-horizon" />
+              <span class="toggle-switch"></span>
+            </label>
           </div>
         </div>
 
@@ -134,6 +149,7 @@ export interface DomElements {
   questionName: HTMLElement;
   questionNameEn: HTMLElement;
   questionHint: HTMLElement;
+  timerFill: HTMLElement;
   feedbackCard: HTMLElement;
   feedbackIcon: HTMLElement;
   feedbackText: HTMLElement;
@@ -154,12 +170,17 @@ export interface DomElements {
   infoNeighbors: HTMLElement;
   infoSeason: HTMLElement;
   closeInfoBtn: HTMLElement;
+  skyInfo: HTMLElement;
+  skyDatetime: HTMLElement;
+  skyLocation: HTMLElement;
   toggleNames: HTMLInputElement;
   toggleLines: HTMLInputElement;
   toggleStarNames: HTMLInputElement;
   toggleEcliptic: HTMLInputElement;
   toggleEquator: HTMLInputElement;
   togglePoles: HTMLInputElement;
+  toggleSolar: HTMLInputElement;
+  toggleHorizon: HTMLInputElement;
 }
 
 export function queryElements(): DomElements {
@@ -172,6 +193,7 @@ export function queryElements(): DomElements {
     questionName: document.getElementById('question-name')!,
     questionNameEn: document.getElementById('question-name-en')!,
     questionHint: document.getElementById('question-hint')!,
+    timerFill: document.getElementById('timer-fill')!,
     feedbackCard: document.getElementById('feedback-card')!,
     feedbackIcon: document.getElementById('feedback-icon')!,
     feedbackText: document.getElementById('feedback-text')!,
@@ -192,11 +214,16 @@ export function queryElements(): DomElements {
     infoNeighbors: document.getElementById('info-neighbors')!,
     infoSeason: document.getElementById('info-season')!,
     closeInfoBtn: document.getElementById('close-info')!,
+    skyInfo: document.getElementById('sky-info')!,
+    skyDatetime: document.getElementById('sky-datetime')!,
+    skyLocation: document.getElementById('sky-location')!,
     toggleNames: document.getElementById('toggle-names') as HTMLInputElement,
     toggleLines: document.getElementById('toggle-lines') as HTMLInputElement,
     toggleStarNames: document.getElementById('toggle-star-names') as HTMLInputElement,
     toggleEcliptic: document.getElementById('toggle-ecliptic') as HTMLInputElement,
     toggleEquator: document.getElementById('toggle-equator') as HTMLInputElement,
     togglePoles: document.getElementById('toggle-poles') as HTMLInputElement,
+    toggleSolar: document.getElementById('toggle-solar') as HTMLInputElement,
+    toggleHorizon: document.getElementById('toggle-horizon') as HTMLInputElement,
   };
 }

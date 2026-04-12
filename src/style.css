@@ -157,6 +157,32 @@ body {
   letter-spacing: 0.5px;
 }
 
+#timer-bar {
+  width: 100%;
+  height: 3px;
+  background: rgba(100, 120, 200, 0.15);
+  border-radius: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+#timer-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #818cf8, #6366f1);
+  border-radius: 2px;
+  transition: width 0.3s linear;
+}
+
+#timer-fill.warning {
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+}
+
+#timer-fill.expired {
+  width: 0% !important;
+  background: #ef4444;
+}
+
 .diff-easy { color: #4ade80; }
 .diff-medium { color: #fbbf24; }
 .diff-hard { color: #f87171; }
@@ -248,6 +274,33 @@ body {
 
 #next-btn:active, #info-btn:active {
   transform: scale(0.97);
+}
+
+/* Sky Info (datetime + location) */
+#sky-info {
+  position: absolute;
+  left: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 12px) + 80px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: rgba(160, 180, 220, 0.7);
+  background: rgba(10, 10, 30, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 8px;
+  padding: 6px 10px;
+  pointer-events: none;
+}
+
+#sky-info.hidden {
+  display: none;
+}
+
+#sky-location {
+  font-size: 10px;
+  color: rgba(140, 160, 200, 0.5);
 }
 
 /* Zoom Controls */

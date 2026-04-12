@@ -34,14 +34,14 @@ describe('panCameraByScreenDelta', () => {
 
   it('shifts RA when dragging horizontally', () => {
     const cam = { centerRa: 12, centerDec: 0, zoom: 400 };
-    const panned = panCameraByScreenDelta(cam, 400, 300, 550, 300, w, h);
-    // RA should shift (may be small at high zoom)
+    const panned = panCameraByScreenDelta(cam, 150, 0);
+    // RA should shift
     expect(Math.abs(panned.centerRa - 12) > 0.0001 || panned.centerRa !== 12).toBe(true);
   });
 
   it('shifts Dec when dragging vertically', () => {
     const cam = { centerRa: 12, centerDec: 0, zoom: 400 };
-    const panned = panCameraByScreenDelta(cam, 400, 300, 400, 250, w, h);
+    const panned = panCameraByScreenDelta(cam, 0, -50);
     expect(panned.centerDec).toBeGreaterThan(0);
   });
 });

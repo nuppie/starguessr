@@ -1,4 +1,4 @@
-import { Constellation } from './constellations';
+import { Constellation, constellations } from './constellations';
 import { Camera, clampCamera, zoomCamera, screenToRaDec } from './camera';
 import { render, RenderState } from './renderer';
 import { getFilteredConstellations, pickNextConstellation, checkTap } from './quiz';
@@ -8,20 +8,29 @@ import { setupInputHandlers } from './input';
 import { createCameraAnimation, tickCameraAnimation, tickMomentum, AnimationState } from './animation';
 import { constellationJa, uiLabels } from './i18n';
 import { constellationInfo } from './constellation-info';
+import { getSolarSystemBodies, SolarSystemBody, calculateHorizon, HorizonInfo } from './solar-system';
 import './style.css';
 
 // --- App State ---
 let userState: UserState = loadState();
 let cam: Camera = { centerRa: 6, centerDec: 10, zoom: 400 };
 let current: Constellation | null = null;
+let solarBodies: SolarSystemBody[] = getSolarSystemBodies();
+let horizonInfo: HorizonInfo | null = null;
 let rs: RenderState = {
   currentConstellation: null,
   highlightConstellation: null,
+  neighborIds: new Set(),
   showAnswer: false,
   tapResult: null,
   tapAnim: 0,
 };
 let camAnim: AnimationState['cameraAnim'] = null;
+
+// --- Timer ---
+const TIMER_DURATION = 30; // seconds
+let timerStart = 0;
+let timerActive = false;
 
 // --- Init DOM ---
 const app = document.getElementById('app')!;
@@ -49,13 +58,36 @@ const input = setupInputHandlers(el.canvas, {
   onRender: renderFrame,
 });
 
+// --- Neighbor lookup ---
+// Build reverse map: Japanese name -> constellation id
+const jaToId: Record<string, string> = {};
+for (const [id, ja] of Object.entries(constellationJa)) {
+  jaToId[ja] = id;
+}
+// Also map English name -> id
+const nameToId: Record<string, string> = {};
+for (const con of constellations) {
+  nameToId[con.name] = con.id;
+}
+
+function findNeighborIds(conId: string): Set<string> {
+  const info = constellationInfo[conId];
+  if (!info) return new Set();
+  const ids = new Set<string>();
+  for (const name of info.neighbors) {
+    const id = jaToId[name] || nameToId[name];
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
 // --- Quiz ---
 function nextQuestion() {
   const pool = getFilteredConstellations(userState.difficulty);
   if (pool.length === 0) return;
 
   current = pickNextConstellation(pool, userState.constellationStats, current?.id ?? null);
-  rs = { currentConstellation: current, highlightConstellation: null, showAnswer: false, tapResult: null, tapAnim: 0 };
+  rs = { currentConstellation: current, highlightConstellation: null, neighborIds: new Set(), showAnswer: false, tapResult: null, tapAnim: 0 };
   camAnim = null;
 
   el.feedbackCard.classList.add('hidden');
@@ -63,17 +95,47 @@ function nextQuestion() {
   el.infoPanel.classList.add('hidden');
   updateStats();
 
+  // Start timer
+  timerStart = performance.now();
+  timerActive = true;
+  el.timerFill.style.width = '100%';
+  el.timerFill.className = '';
+
   cam = clampCamera({ centerRa: Math.random() * 24, centerDec: Math.random() * 140 - 70, zoom: 300 + Math.random() * 200 });
   renderFrame();
 }
 
+function handleTimeout() {
+  if (!current || rs.showAnswer) return;
+  // Time's up — treat as wrong answer
+  timerActive = false;
+  const neighbors = findNeighborIds(current.id);
+  rs = { ...rs, tapResult: null, tapAnim: 0, showAnswer: true, highlightConstellation: current, neighborIds: neighbors };
+  userState = recordAnswer(userState, current.id, false);
+
+  const ja = constellationJa[current.id] || '';
+  el.questionCard.classList.add('hidden');
+  el.feedbackCard.classList.remove('hidden');
+  el.feedbackIcon.textContent = '⏱';
+  el.feedbackIcon.className = 'wrong';
+  el.feedbackText.textContent = uiLabels.thatWas(current.name, ja || current.name);
+
+  const hasInfo = !!constellationInfo[current.id];
+  el.infoBtn.style.display = hasInfo ? 'inline-block' : 'none';
+
+  camAnim = createCameraAnimation(cam, { centerRa: current.centerRa, centerDec: current.centerDec, zoom: 400 });
+  updateStats();
+}
+
 function handleTap(x: number, y: number) {
   if (rs.showAnswer || !current) return;
+  timerActive = false;
 
   const { ra, dec } = screenToRaDec(x, y, cam, window.innerWidth, window.innerHeight);
   const result = checkTap(ra, dec, current, cam.zoom);
+  const neighbors = findNeighborIds(current.id);
 
-  rs = { ...rs, tapResult: { x, y, correct: result.correct }, tapAnim: 1, showAnswer: true, highlightConstellation: current };
+  rs = { ...rs, tapResult: { x, y, correct: result.correct }, tapAnim: 1, showAnswer: true, highlightConstellation: current, neighborIds: neighbors };
   userState = recordAnswer(userState, current.id, result.correct);
 
   const ja = constellationJa[current.id] || '';
@@ -148,6 +210,8 @@ function syncToggles() {
   el.toggleEcliptic.checked = userState.display.showEcliptic;
   el.toggleEquator.checked = userState.display.showEquator;
   el.togglePoles.checked = userState.display.showPoles;
+  el.toggleSolar.checked = userState.display.showSolarSystem;
+  el.toggleHorizon.checked = userState.display.showHorizon;
 }
 
 function onToggleChange() {
@@ -158,17 +222,22 @@ function onToggleChange() {
     showEcliptic: el.toggleEcliptic.checked,
     showEquator: el.toggleEquator.checked,
     showPoles: el.togglePoles.checked,
+    showSolarSystem: el.toggleSolar.checked,
+    showHorizon: el.toggleHorizon.checked,
   };
   saveState(userState);
+  if (el.toggleHorizon.checked && !horizonInfo) {
+    requestHorizon();
+  }
   renderFrame();
 }
 
-[el.toggleNames, el.toggleLines, el.toggleStarNames, el.toggleEcliptic, el.toggleEquator, el.togglePoles]
+[el.toggleNames, el.toggleLines, el.toggleStarNames, el.toggleEcliptic, el.toggleEquator, el.togglePoles, el.toggleSolar, el.toggleHorizon]
   .forEach(t => t.addEventListener('change', onToggleChange));
 
 // --- Render ---
 function renderFrame() {
-  render(el.ctx, cam, window.innerWidth, window.innerHeight, rs, userState.display);
+  render(el.ctx, cam, window.innerWidth, window.innerHeight, rs, userState.display, solarBodies, horizonInfo);
 }
 
 function animLoop() {
@@ -188,7 +257,19 @@ function animLoop() {
     needsRender = true;
   }
 
-  const mom = tickMomentum(cam, input.momentum, input.isDragging(), window.innerWidth, window.innerHeight);
+  // Timer countdown
+  if (timerActive) {
+    const elapsed = (performance.now() - timerStart) / 1000;
+    const remaining = Math.max(0, 1 - elapsed / TIMER_DURATION);
+    el.timerFill.style.width = `${remaining * 100}%`;
+    el.timerFill.className = remaining < 0.25 ? 'warning' : '';
+    if (remaining <= 0) {
+      el.timerFill.className = 'expired';
+      handleTimeout();
+    }
+  }
+
+  const mom = tickMomentum(cam, input.momentum, input.isDragging());
   if (mom.moved) {
     cam = mom.cam;
     needsRender = true;
@@ -226,6 +307,62 @@ el.resetBtn.addEventListener('click', () => {
     nextQuestion();
   }
 });
+
+// --- Sky Info (datetime + location) ---
+let gpsLat: number | null = null;
+let gpsLon: number | null = null;
+
+function updateSkyInfo() {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' });
+  const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  el.skyDatetime.textContent = `${dateStr} ${timeStr}`;
+
+  if (gpsLat !== null && gpsLon !== null) {
+    const ns = gpsLat >= 0 ? 'N' : 'S';
+    const ew = gpsLon >= 0 ? 'E' : 'W';
+    el.skyLocation.textContent = `${Math.abs(gpsLat).toFixed(2)}°${ns} ${Math.abs(gpsLon).toFixed(2)}°${ew}`;
+  } else {
+    el.skyLocation.textContent = '';
+  }
+
+  el.skyInfo.classList.remove('hidden');
+}
+
+// --- GPS Horizon ---
+function requestHorizon() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      gpsLat = pos.coords.latitude;
+      gpsLon = pos.coords.longitude;
+      horizonInfo = calculateHorizon(new Date(), gpsLat, gpsLon);
+      updateSkyInfo();
+      renderFrame();
+    },
+    () => { /* permission denied or error — silently ignore */ }
+  );
+}
+
+// Update solar system positions and clock every 30 seconds
+setInterval(() => {
+  solarBodies = getSolarSystemBodies();
+  if (gpsLat !== null && gpsLon !== null) {
+    horizonInfo = calculateHorizon(new Date(), gpsLat, gpsLon);
+  }
+  updateSkyInfo();
+  renderFrame();
+}, 30000);
+
+// Always request GPS for location display + horizon
+requestHorizon();
+
+// Show datetime immediately
+updateSkyInfo();
+
+// Debug: expose camera for testing
+(window as any).__getCam = () => ({ ra: cam.centerRa, dec: cam.centerDec, zoom: cam.zoom });
+(window as any).__setCam = (ra: number, dec: number) => { cam = clampCamera({ centerRa: ra, centerDec: dec, zoom: cam.zoom }); renderFrame(); };
 
 // --- Start ---
 resize();

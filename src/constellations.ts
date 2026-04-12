@@ -982,18 +982,23 @@ export const backgroundStars: Star[] = [
   { ra:  4.30, dec:  15.87, mag:  3.65 },
   { ra:  4.48, dec:  16.00, mag:  3.76 },
   { ra:  4.52, dec:  15.52, mag:  4.29 },
-  // Random dim background stars — uniform distribution on sphere
+  // Random dim background stars — uniform distribution on sphere using hash-based PRNG
   ...Array.from({ length: 300 }, (_, i) => {
-    // Use deterministic pseudo-random (golden ratio based) for uniform sphere coverage
-    const phi = (i * 0.6180339887) % 1; // golden ratio fraction
-    const theta = (i * 0.3247179572) % 1; // another irrational
-    const ra = phi * 24;
-    // acos distribution for uniform sphere: dec = asin(2*theta - 1) in degrees
-    const dec = Math.asin(2 * theta - 1) * (180 / Math.PI);
+    // Simple hash to break patterns (Mulberry32-inspired)
+    let h = (i + 1) * 2654435761;
+    h = ((h >>> 16) ^ h) * 0x45d9f3b;
+    h = ((h >>> 16) ^ h) * 0x45d9f3b;
+    h = (h >>> 16) ^ h;
+    const r1 = (h & 0xffff) / 0x10000;
+    h = ((h >>> 16) ^ (h * 0x119de1f3)) >>> 0;
+    const r2 = (h & 0xffff) / 0x10000;
+
+    const ra = r1 * 24;
+    const dec = Math.asin(2 * r2 - 1) * (180 / Math.PI);
     return {
       ra,
       dec,
-      mag: 3.8 + ((i * 3 + 7) % 25) * 0.08,
+      mag: 3.8 + (((i * 7 + 13) % 25) * 0.08),
     };
   }),
 ];

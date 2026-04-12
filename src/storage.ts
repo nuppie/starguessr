@@ -13,6 +13,8 @@ export interface DisplaySettings {
   showEquator: boolean;
   showEcliptic: boolean;
   showPoles: boolean;
+  showSolarSystem: boolean;
+  showHorizon: boolean;
 }
 
 export interface UserState {
@@ -33,6 +35,8 @@ const defaultDisplay: DisplaySettings = {
   showEquator: false,
   showEcliptic: false,
   showPoles: false,
+  showSolarSystem: true,
+  showHorizon: false,
 };
 
 const defaultState: UserState = {

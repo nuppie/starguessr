@@ -4,9 +4,10 @@ import { DisplaySettings } from './storage';
 import { constellationJa } from './i18n';
 import { drawCelestialLines } from './celestial-lines';
 import { drawFamousStars } from './famous-stars';
+import { SolarSystemBody, drawSolarSystemBodies, HorizonInfo, drawHorizon } from './solar-system';
 
 function starRadius(mag: number, zoom: number): number {
-  const base = Math.max(0.3, 3.5 - mag * 0.45);
+  const base = Math.max(0.2, 3.0 - mag * 0.55);
   const zoomFactor = Math.min(zoom / 300, 2.5);
   return base * zoomFactor;
 }
@@ -44,7 +45,7 @@ function drawConstellation(
   // Lines
   if (opts.showLines) {
     ctx.strokeStyle = opts.lineColor;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
     ctx.globalAlpha = opts.lineAlpha;
     for (const line of con.lines) {
       const from = positions[line.from];
@@ -164,6 +165,7 @@ function drawAllConstellationNames(
 export interface RenderState {
   currentConstellation: Constellation | null;
   highlightConstellation: Constellation | null;
+  neighborIds: Set<string>;
   showAnswer: boolean;
   tapResult: { x: number; y: number; correct: boolean } | null;
   tapAnim: number;
@@ -176,6 +178,8 @@ export function render(
   h: number,
   state: RenderState,
   display: DisplaySettings,
+  solarBodies?: SolarSystemBody[],
+  horizon?: HorizonInfo | null,
 ) {
   // Background
   const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7);
@@ -221,15 +225,17 @@ export function render(
   for (const con of constellations) {
     const isHighlighted = state.highlightConstellation?.id === con.id;
     const isAnswer = state.showAnswer && state.currentConstellation?.id === con.id;
+    const isNeighbor = state.showAnswer && state.neighborIds.has(con.id);
 
     drawConstellation(ctx, cam, w, h, con, {
-      lineAlpha: isHighlighted || isAnswer ? 0.8 : 0.15,
-      starAlpha: isHighlighted || isAnswer ? 1 : 0.5,
+      lineAlpha: isAnswer ? 0.8 : isHighlighted ? 0.8 : isNeighbor ? 0.55 : 0.35,
+      starAlpha: isAnswer || isHighlighted ? 1 : isNeighbor ? 0.85 : 0.7,
       lineColor: isAnswer ? (state.tapResult?.correct ? '#4ade80' : '#f87171') :
-                 isHighlighted ? '#60a5fa' : '#334155',
-      starColor: isHighlighted || isAnswer ? '#ffffff' : '#8899bb',
-      showLabel: isAnswer,
-      labelColor: state.tapResult?.correct ? '#4ade80' : '#f87171',
+                 isHighlighted ? '#60a5fa' :
+                 isNeighbor ? '#a78bfa' : '#334155',
+      starColor: isAnswer || isHighlighted ? '#ffffff' : isNeighbor ? '#c4b5fd' : '#8899bb',
+      showLabel: isAnswer || isNeighbor,
+      labelColor: isAnswer ? (state.tapResult?.correct ? '#4ade80' : '#f87171') : '#a78bfa',
       showLines: display.showConstellationLines,
     });
   }
@@ -241,6 +247,16 @@ export function render(
 
   // Famous star names
   drawFamousStars(ctx, cam, w, h, display.showStarNames);
+
+  // Solar system bodies (sun, moon, planets)
+  if (display.showSolarSystem && solarBodies) {
+    drawSolarSystemBodies(ctx, cam, w, h, solarBodies);
+  }
+
+  // Horizon line
+  if (display.showHorizon && horizon) {
+    drawHorizon(ctx, cam, w, h, horizon);
+  }
 
   // Tap feedback ring
   if (state.tapResult && state.tapAnim > 0) {

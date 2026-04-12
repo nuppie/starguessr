@@ -88,6 +88,9 @@ export const constellationJa: Record<string, string> = {
   equuleus: 'こうま座',
   lacerta: 'とかげ座',
   scutum: 'たて座',
+  piscis_austrinus: 'みなみのうお座',
+  carina: 'りゅうこつ座',
+  cetus: 'くじら座',
   cassiopeia_w: 'カシオペヤ座', // alias
 };
 
@@ -120,6 +123,8 @@ export const uiLabels = {
   showEquator: '赤道を表示',
   showPoles: '天の極を表示',
   showStarNames: '恒星名を表示',
+  showSolarSystem: '太陽・月・惑星を表示',
+  showHorizon: '地平線を表示（GPS）',
   info: '星座情報',
   howToRemember: '覚え方',
   neighbors: '隣接する星座',
